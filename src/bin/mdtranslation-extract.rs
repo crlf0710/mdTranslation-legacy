@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::io::{self, Read, Write};
-use std::fs;
 use std::fmt;
+use std::fs;
+use std::io::{self, Read, Write};
+use std::path::PathBuf;
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -11,6 +11,8 @@ enum Error {
     IO(#[from] io::Error),
     #[error("format error: {0}")]
     Fmt(#[from] fmt::Error),
+    #[error("from tokens error: {0}")]
+    FromTokens(#[from] mdtranslation::from_tokens::FromTokensError),
 }
 
 #[derive(Debug, StructOpt)]
@@ -39,8 +41,11 @@ fn main() -> Result<(), Error> {
     let mut input_text = String::new();
     let _ = input.read_to_string(&mut input_text)?;
     let reader = pulldown_cmark::Parser::new(&input_text);
+    let mut ast = mdtranslation::from_tokens::cmark_ast_from_tokens(reader)?;
+    ast.perform_sentence_segment();
+    let clause_list = ast.extract_clause_list(&pulldown_cmark::CowStr::Borrowed("en-US"));
     let mut output_text = String::new();
-    let writer = pulldown_cmark_to_cmark::cmark(reader, &mut output_text, None)?;
+    let _ = pulldown_cmark_to_cmark::cmark(clause_list.into_tokens(), &mut output_text, None)?;
     output_file.write_all(output_text.as_bytes())?;
 
     Ok(())
